@@ -2,26 +2,224 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@layer base {
+  body {
+    @apply bg-dark text-white;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  input, select, textarea {
+    @apply text-white !important;
+  }
+
+  option {
+    @apply bg-dark text-white;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .modern-card {
+    @apply bg-dark/80 border border-white/10 backdrop-blur-lg
+           rounded-2xl p-6 shadow-lg
+           hover:shadow-primary/20 hover:border-primary/30
+           transition-all duration-300;
+  }
+
+  .feature-card {
+    @apply bg-dark/80 backdrop-blur-xl
+           border-2 border-white/5
+           rounded-2xl p-6
+           hover:border-primary/30 hover:shadow-lg hover:shadow-primary/20
+           transform hover:-translate-y-1
+           transition-all duration-300;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 rounded-xl font-medium
+           bg-gradient-to-r from-primary to-secondary
+           hover:opacity-90 transform hover:-translate-y-0.5
+           transition-all duration-200
+           text-white shadow-lg shadow-primary/25;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 rounded-xl font-medium
+           bg-surface border-2 border-white/10
+           hover:border-primary/50 hover:bg-primary/10
+           transition-all duration-200
+           text-white;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl
+           bg-surface border-2 border-white/10
+           focus:border-primary/50 focus:ring-2 focus:ring-primary/20
+           text-white placeholder-gray-400
+           transition-all duration-200;
+  }
+
+  .form-input, .form-select {
+    @apply w-full px-4 py-3 rounded-xl
+           bg-surface border-2 border-white/10
+           focus:border-primary/50 focus:ring-2 focus:ring-primary/20
+           text-white placeholder-gray-400
+           transition-all duration-200;
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r
+           from-primary via-secondary to-accent
+           animate-gradient;
+  }
+
+  .glass {
+    @apply bg-white/5 backdrop-blur-lg border border-white/10;
+  }
+
+  .hover-card {
+    @apply transform transition-all duration-300
+           hover:scale-105 hover:shadow-xl
+           hover:shadow-primary/20;
+  }
+
+  .text-glow {
+    @apply text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)];
+  }
+
+  .text-glow-primary {
+    @apply text-primary drop-shadow-[0_0_10px_rgba(77,97,252,0.5)];
+  }
 }
 
+:root {
+  --primary: #4D61FC;
+  --secondary: #FF4B91;
+  --accent: #00D8B4;
+  --dark: #0A0F1C;
+  --surface: #141B2D;
+}
+
+/* Enhanced Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes glow {
+  0%, 100% { text-shadow: 0 0 10px rgba(77,97,252,0.5); }
+  50% { text-shadow: 0 0 20px rgba(77,97,252,0.8); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse 3s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.dot-pattern {
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.1) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+/* Enhanced Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-dark;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-primary/50 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary;
+}
+
+/* Selection Color */
+::selection {
+  @apply bg-primary/30 text-white;
+}
+
+/* Add these at the end of your file */
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress .bar {
+  background: var(--primary);
+  position: fixed;
+  z-index: 1031;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+}
+
+#nprogress .peg {
+  display: block;
+  position: absolute;
+  right: 0px;
+  width: 100px;
+  height: 100%;
+  box-shadow: 0 0 10px var(--primary), 0 0 5px var(--primary);
+  opacity: 1.0;
+  transform: rotate(3deg) translate(0px, -4px);
+}
+
+/* Custom Scrollbar for Interest Categories */
+.interest-scroll::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.interest-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.interest-scroll::-webkit-scrollbar-thumb {
+  background: rgba(77, 97, 252, 0.3);
+  border-radius: 10px;
+}
+
+.interest-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(77, 97, 252, 0.5);
+}
+
+/* Loading Animation */
+@keyframes createAccount {
+  0% { content: "Creating Account."; }
+  33% { content: "Creating Account.."; }
+  66% { content: "Creating Account..."; }
+  100% { content: "Creating Account."; }
+}
+
+.loading-dots::after {
+  content: "Creating Account.";
+  animation: createAccount 1.5s infinite;
+}
+
+/* Add this to your existing CSS */
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
   }
 }
