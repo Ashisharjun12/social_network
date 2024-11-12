@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     // Generate tempId
     const tempId = await generateAndSendTempId(body.recoveryEmail, body.username)
     
-    // Create new user
+    // Create new user with optional college
     const userData = {
       username: body.username,
       avatarType: body.avatarType || 'generated',
@@ -38,7 +38,16 @@ export async function POST(req: Request) {
       tempId,
       isEmailVerified: false,
       role: 'user',
-      karmaPoints: 0
+      karmaPoints: 0,
+      // Only include college if it exists in the request
+      ...(body.college && {
+        college: {
+          id: body.college.id,
+          name: body.college.name,
+          location: body.college.location,
+          type: body.college.type
+        }
+      })
     }
 
     const user = await User.create(userData)

@@ -5,6 +5,12 @@ interface IUser extends Document {
   avatarType: 'generated' | 'uploaded';
   avatarUrl: string;
   cloudinaryPublicId: string | null;
+  college?: {
+    id: string;
+    name: string;
+    location: string;
+    type: string;
+  };
   personalInfo: {
     age: number;
     gender: string;
@@ -18,8 +24,8 @@ interface IUser extends Document {
   role: 'user' | 'admin';
   karmaPoints: number;
   lastActive: Date;
-  followers: string[];
   following: string[];
+  followers: string[];
   isVerified: boolean;
   verifiedAt?: Date;
   verifiedBy?: string;
@@ -84,7 +90,13 @@ const userSchema = new Schema<IUser>({
     default: false
   },
   verifiedAt: Date,
-  verifiedBy: String
+  verifiedBy: String,
+  college: {
+    id: { type: String },
+    name: { type: String },
+    location: { type: String },
+    type: { type: String }
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -99,6 +111,14 @@ userSchema.virtual('followersCount').get(function() {
 userSchema.virtual('followingCount').get(function() {
   return this.following?.length || 0;
 });
+
+// Add index for college.id for faster queries
+userSchema.index({ 'college.id': 1 });
+
+// Add compound indexes for faster search
+userSchema.index({ username: 'text', 'college.name': 'text', 'college.location': 'text' });
+userSchema.index({ 'college.id': 1 }); // Index for college-based queries
+userSchema.index({ username: 1 }); // Index for username queries
 
 const User = mongoose.models.User || mongoose.model<IUser>('User', userSchema);
 export default User; 

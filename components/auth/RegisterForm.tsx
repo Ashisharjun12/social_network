@@ -10,9 +10,10 @@ import PersonalInfoStage from './stages/PersonalInfoStage'
 import PersonalityStage from './stages/PersonalityStage'
 import InterestsStage from './stages/InterestsStage'
 import RecoveryStage from './stages/RecoveryStage'
+import CollegeStage from './stages/CollegeStage'
 import ProgressBar from './ProgressBar'
 
-type Stage = 'username' | 'avatar' | 'personal' | 'personality' | 'interests' | 'recovery'
+type Stage = 'username' | 'avatar' | 'college' | 'personal' | 'personality' | 'interests' | 'recovery'
 
 export default function RegisterForm() {
   const router = useRouter()
@@ -24,6 +25,12 @@ export default function RegisterForm() {
     avatarType: '',
     avatarUrl: '',
     cloudinaryPublicId: '',
+    college: null as null | {
+      id: string;
+      name: string;
+      location: string;
+      type: string;
+    },
     personalInfo: {
       age: '',
       gender: '',
@@ -40,17 +47,19 @@ export default function RegisterForm() {
     const validateForm = () => {
       switch (stage) {
         case 'username':
-          return !!formData.username && isAvailable;
+          return Boolean(formData.username && isAvailable);
         case 'avatar':
-          return !!formData.avatarUrl;
+          return Boolean(formData.avatarUrl);
+        case 'college':
+          return Boolean(formData.college?.id);
         case 'personal':
-          return !!formData.personalInfo.age && !!formData.personalInfo.gender;
+          return Boolean(formData.personalInfo.age && formData.personalInfo.gender);
         case 'personality':
-          return !!formData.personalInfo.personality && !!formData.personalInfo.profession;
+          return Boolean(formData.personalInfo.personality && formData.personalInfo.profession);
         case 'interests':
           return (formData.interests || []).length >= 3;
         case 'recovery':
-          return !!formData.recoveryEmail;
+          return Boolean(formData.recoveryEmail);
         default:
           return false;
       }
@@ -60,7 +69,7 @@ export default function RegisterForm() {
   }, [stage, formData, isAvailable]);
 
   const handleNext = () => {
-    const stages: Stage[] = ['username', 'avatar', 'personal', 'personality', 'interests', 'recovery'];
+    const stages: Stage[] = ['username', 'avatar', 'college', 'personal', 'personality', 'interests', 'recovery'];
     const currentIndex = stages.indexOf(stage);
     if (currentIndex < stages.length - 1) {
       setStage(stages[currentIndex + 1]);
@@ -68,7 +77,7 @@ export default function RegisterForm() {
   };
 
   const handleBack = () => {
-    const stages: Stage[] = ['username', 'avatar', 'personal', 'personality', 'interests', 'recovery'];
+    const stages: Stage[] = ['username', 'avatar', 'college', 'personal', 'personality', 'interests', 'recovery'];
     const currentIndex = stages.indexOf(stage);
     if (currentIndex > 0) {
       setStage(stages[currentIndex - 1]);
@@ -126,6 +135,12 @@ export default function RegisterForm() {
             setFormData={setFormData}
           />
         )}
+        {stage === 'college' && (
+          <CollegeStage 
+            formData={formData} 
+            setFormData={setFormData}
+          />
+        )}
         {stage === 'personal' && (
           <PersonalInfoStage 
             formData={formData} 
@@ -170,7 +185,7 @@ export default function RegisterForm() {
               disabled={!formValid || isSubmitting}
               className={`btn-primary relative overflow-hidden ${
                 !formValid || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-              } ${stage === 'username' ? 'w-full' : 'ml-auto'}`}
+              } ${stage === 'recovery' ? 'w-full' : 'ml-auto'}`}
             >
               {isSubmitting ? (
                 <div className="flex items-center justify-center gap-2">

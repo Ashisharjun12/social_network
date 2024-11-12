@@ -1,171 +1,247 @@
 'use client'
 import { useState, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import Image from 'next/image'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Image as ImageIcon, PlusCircle, X, BarChart3 } from 'lucide-react'
+import Image from 'next/image'
 import toast from 'react-hot-toast'
 
-interface CreatePostProps {
-  onPostCreated: () => void;
+type PostType = 'text' | 'image' | 'poll';
+
+interface PollOption {
+  text: string;
+  votes: number;
 }
 
-export default function CreatePost({ onPostCreated }: CreatePostProps) {
+export default function CreatePost({ onPostCreated }: { onPostCreated: () => void }) {
   const { user } = useAuthStore()
-  const [showForm, setShowForm] = useState(false)
   const [content, setContent] = useState('')
-  const [hashtags, setHashtags] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [postType, setPostType] = useState<PostType>('text')
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [pollOptions, setPollOptions] = useState<PollOption[]>([
+    { text: '', votes: 0 },
+    { text: '', votes: 0 }
+  ])
+  const [pollDuration, setPollDuration] = useState('1') // days
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const getAvatarDisplay = () => {
-    if (user?.avatarUrl) {
-      return (
-        <div className="w-10 h-10 rounded-full overflow-hidden">
-          <Image
-            src={user.avatarUrl}
-            alt={`${user.username}'s avatar`}
-            width={40}
-            height={40}
-            className="w-full h-full object-cover"
-            unoptimized
-          />
-        </div>
-      );
-    }
-
-    return (
-      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-        <span className="text-xl">👤</span>
-      </div>
-    );
-  };
-
-  // Extract hashtags from content in real-time
-  const handleContentChange = (value: string) => {
-    setContent(value);
-    const tags = value.match(/#[\w]+/g)?.map(tag => tag.slice(1)) || [];
-    setHashtags(tags);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!content.trim() || !user) return
-
-    setIsSubmitting(true)
-    try {
-      const response = await fetch('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: user.username,
-          content,
-          userAvatarUrl: user.avatarUrl,
-          userAvatarType: user.avatarType
-        })
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        toast.success('Post created successfully!')
-        setContent('')
-        setHashtags([])
-        setShowForm(false)
-        onPostCreated()
-      } else {
-        throw new Error(data.error || 'Failed to create post')
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast.error('Image size should be less than 5MB')
+        return
       }
-    } catch (error) {
-      toast.error('Failed to create post')
-      console.error('Post creation error:', error)
-    } finally {
-      setIsSubmitting(false)
+      setSelectedImage(file)
+      setImagePreview(URL.createObjectURL(file))
+      setPostType('image')
     }
   }
 
+  const handleAddPollOption = () => {
+    if (pollOptions.length < 4) {
+      setPollOptions([...pollOptions, { text: '', votes: 0 }])
+    }
+  }
+
+  const handleRemovePollOption = (index: number) => {
+    if (pollOptions.length > 2) {
+      setPollOptions(pollOptions.filter((_, i) => i !== index))
+    }
+  }
+
+  const handlePollOptionChange = (index: number, value: string) => {
+    const newOptions = [...pollOptions]
+    newOptions[index].text = value
+    setPollOptions(newOptions)
+  }
+
+  const handleSubmit = async () => {
+    if (!content.trim() && !selectedImage && postType !== 'poll') return;
+
+    setIsSubmitting(true);
+    try {
+      let mediaUrl = '';
+      let cloudinaryPublicId = '';
+      
+      if (selectedImage) {
+        const formData = new FormData();
+        formData.append('file', selectedImage);
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!uploadResponse.ok) throw new Error('Failed to upload image');
+        const { url, public_id } = await uploadResponse.json();
+        mediaUrl = url;
+        cloudinaryPublicId = public_id;
+      }
+
+      const postData = {
+        content,
+        username: user?.username,
+        mediaUrl,
+        cloudinaryPublicId,
+        poll: postType === 'poll' ? {
+          options: pollOptions,
+          endsAt: new Date(Date.now() + parseInt(pollDuration) * 24 * 60 * 60 * 1000)
+        } : undefined
+      };
+
+      const response = await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(postData)
+      });
+
+      if (!response.ok) throw new Error('Failed to create post');
+
+      setContent('');
+      setSelectedImage(null);
+      setImagePreview(null);
+      setPostType('text');
+      setPollOptions([{ text: '', votes: 0 }, { text: '', votes: 0 }]);
+      onPostCreated();
+      toast.success('Post created!');
+    } catch (error) {
+      console.error('Error creating post:', error);
+      toast.error('Failed to create post');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="bg-surface rounded-xl p-4 mb-6">
-      {!showForm ? (
-        <div className="flex gap-4 items-center">
-          {getAvatarDisplay()}
+    <div className="space-y-4">
+      <div className="flex gap-3">
+        <Image
+          src={user?.avatarUrl || '/default-avatar.png'}
+          alt={user?.username || 'User'}
+          width={40}
+          height={40}
+          className="rounded-full"
+          unoptimized
+        />
+        <div className="flex-1">
+          <textarea
+            placeholder="What's happening?"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="w-full bg-transparent border-none focus:outline-none resize-none"
+            rows={3}
+          />
+
+          {/* Image Preview */}
+          {imagePreview && (
+            <div className="relative mt-2">
+              <Image
+                src={imagePreview}
+                alt="Selected image"
+                width={300}
+                height={300}
+                className="rounded-lg max-h-[300px] object-cover"
+                unoptimized
+              />
+              <button
+                onClick={() => {
+                  setSelectedImage(null)
+                  setImagePreview(null)
+                  setPostType('text')
+                }}
+                className="absolute top-2 right-2 p-1 bg-black/50 rounded-full"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          {/* Poll Options */}
+          {postType === 'poll' && (
+            <div className="space-y-3 mt-4">
+              {pollOptions.map((option, index) => (
+                <div key={index} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={option.text}
+                    onChange={(e) => handlePollOptionChange(index, e.target.value)}
+                    placeholder={`Option ${index + 1}`}
+                    className="flex-1 bg-surface/50 rounded-lg px-3 py-2"
+                  />
+                  {index > 1 && (
+                    <button
+                      onClick={() => handleRemovePollOption(index)}
+                      className="text-gray-400 hover:text-red-400"
+                    >
+                      <X size={20} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {pollOptions.length < 4 && (
+                <button
+                  onClick={handleAddPollOption}
+                  className="text-primary hover:text-primary/80 text-sm"
+                >
+                  + Add Option
+                </button>
+              )}
+              <select
+                value={pollDuration}
+                onChange={(e) => setPollDuration(e.target.value)}
+                className="bg-surface/50 rounded-lg px-3 py-2 mt-2"
+              >
+                <option value="1">1 Day</option>
+                <option value="3">3 Days</option>
+                <option value="7">7 Days</option>
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center">
+        <div className="flex gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageSelect}
+            accept="image/*"
+            className="hidden"
+          />
           <button
-            onClick={() => setShowForm(true)}
-            className="flex-grow text-left px-4 py-3 bg-dark rounded-lg text-gray-400 hover:bg-primary/10 transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+            className={`p-2 rounded-full hover:bg-white/5 ${
+              postType === 'image' ? 'text-primary' : 'text-gray-400'
+            }`}
           >
-            Share your thoughts anonymously...
+            <ImageIcon size={20} />
+          </button>
+          <button
+            onClick={() => setPostType(postType === 'poll' ? 'text' : 'poll')}
+            className={`p-2 rounded-full hover:bg-white/5 ${
+              postType === 'poll' ? 'text-primary' : 'text-gray-400'
+            }`}
+          >
+            <BarChart3 size={20} />
           </button>
         </div>
-      ) : (
-        <AnimatePresence>
-          <motion.form
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            onSubmit={handleSubmit}
-            className="space-y-4"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              {getAvatarDisplay()}
-              <div>
-                <div className="font-medium">{user?.username}</div>
-                <div className="text-xs text-gray-400">Posting anonymously</div>
-              </div>
-            </div>
 
-            <div className="relative">
-              <textarea
-                value={content}
-                onChange={(e) => handleContentChange(e.target.value)}
-                placeholder="What's on your mind? Use #hashtags to categorize..."
-                className="w-full px-4 py-3 bg-dark rounded-lg border border-white/10 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 min-h-[120px]"
-                required
-              />
-              
-              {hashtags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {hashtags.map((tag, index) => (
-                    <span
-                      key={index}
-                      className="px-2 py-1 bg-primary/20 text-primary rounded-full text-sm"
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="btn-secondary"
-                disabled={isSubmitting}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn-primary"
-                disabled={isSubmitting || !content.trim()}
-              >
-                {isSubmitting ? (
-                  <div className="flex items-center gap-2">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    >
-                      ⚡
-                    </motion.div>
-                    Posting...
-                  </div>
-                ) : (
-                  'Post'
-                )}
-              </button>
-            </div>
-          </motion.form>
-        </AnimatePresence>
-      )}
+        <button
+          onClick={handleSubmit}
+          disabled={isSubmitting || (!content.trim() && !selectedImage && postType !== 'poll')}
+          className={`px-4 py-1.5 bg-primary rounded-full text-white font-medium ${
+            isSubmitting || (!content.trim() && !selectedImage && postType !== 'poll')
+              ? 'opacity-50 cursor-not-allowed'
+              : 'hover:bg-primary/90'
+          }`}
+        >
+          {isSubmitting ? 'Posting...' : 'Post'}
+        </button>
+      </div>
     </div>
   )
 } 

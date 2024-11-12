@@ -2,44 +2,50 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import Post from '@/lib/models/Post';
 import User from '@/lib/models/User';
+import Like from '@/lib/models/Like';
+import mongoose from 'mongoose';
 
 export async function GET(req: Request) {
   try {
     await connectDB();
-    
-    const posts = await Post.find({ isDeleted: false })
+    const url = new URL(req.url);
+    const username = url.searchParams.get('username');
+
+    let posts = await Post.find({ isDeleted: false })
+      .populate('authorId', 'isVerified')
       .sort({ createdAt: -1 })
-      .lean()
-      .exec();
+      .lean();
 
-    // Get all unique author IDs
-    const authorIds = [...new Set(posts.map(post => post.authorId))];
-    
-    // Fetch all authors in one query
-    const authors = await User.find({ _id: { $in: authorIds } })
-      .select('username isVerified')
-      .lean()
-      .exec();
-
-    // Create a map of author data
-    const authorMap = authors.reduce((acc, author) => {
-      acc[author._id.toString()] = author;
-      return acc;
-    }, {} as Record<string, any>);
-
-    // Add verification status to posts
-    const formattedPosts = posts.map(post => ({
+    // Transform posts to include isVerified from author
+    posts = posts.map(post => ({
       ...post,
-      isVerified: authorMap[post.authorId.toString()]?.isVerified || false
+      isVerified: post.authorId?.isVerified || false,
+      authorId: post.authorId?._id
     }));
 
-    return NextResponse.json(formattedPosts);
+    // If username provided, get like status for each post
+    if (username) {
+      const user = await User.findOne({ username });
+      if (user) {
+        const likes = await Like.find({
+          likedBy: user._id,
+          post: { $in: posts.map(p => p._id) }
+        });
+
+        const likedPostIds = new Set(likes.map(l => l.post.toString()));
+        
+        posts = posts.map(post => ({
+          ...post,
+          isLiked: likedPostIds.has((post._id as mongoose.Types.ObjectId).toString())
+        }));
+      }
+    }
+
+    return NextResponse.json(posts);
+
   } catch (error) {
     console.error('Error fetching posts:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch posts' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
   }
 }
 
@@ -48,34 +54,43 @@ export async function POST(req: Request) {
     await connectDB();
     const body = await req.json();
     
-    // Get user's information
     const user = await User.findOne({ username: body.username });
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Extract hashtags from content
-    const hashtags = body.content.match(/#[\w]+/g)?.map((tag: string) => tag.slice(1)) || [];
-
-    // Create post data
-    const postData = {
+    const postData: any = {
       authorId: user._id,
       username: user.username,
       content: body.content,
-      tags: hashtags,
+      tags: body.content.match(/#[\w]+/g)?.map((tag: string) => tag.slice(1)) || [],
       userAvatarUrl: user.avatarUrl,
       userAvatarType: user.avatarType,
       likesCount: 0,
       commentsCount: 0,
       isDeleted: false
     };
-    
+
+    // Add media if present
+    if (body.mediaUrl) {
+      postData.media = {
+        type: 'image',
+        url: body.mediaUrl,
+        cloudinaryPublicId: body.cloudinaryPublicId
+      };
+    }
+
+    // Add poll if present
+    if (body.poll) {
+      postData.poll = {
+        options: body.poll.options,
+        totalVotes: 0,
+        endsAt: body.poll.endsAt
+      };
+    }
+
     const post = await Post.create(postData);
     
-    // Return the post with verification status
     return NextResponse.json({
       success: true,
       post: {
@@ -83,12 +98,10 @@ export async function POST(req: Request) {
         isVerified: user.isVerified
       }
     }, { status: 201 });
+
   } catch (error) {
     console.error('Error creating post:', error);
-    return NextResponse.json(
-      { error: 'Failed to create post' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
   }
 }
 

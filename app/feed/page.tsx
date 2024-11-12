@@ -1,89 +1,135 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { LeftSidebar, RightSidebar } from '@/components/feed/Sidebar'
+import { LeftSidebar, RightSidebar, BottomNav } from '@/components/feed/Sidebar'
 import { PostList } from '@/components/feed/PostList'
-import CreatePost from '@/components/feed/CreatePost'
 import UserProfile from '@/components/feed/UserProfile'
+import Search from '@/components/feed/Search'
+import Groups from '@/components/feed/Groups'
+import CreatePostModal from '@/components/feed/CreatePostModal'
 import toast from 'react-hot-toast'
-
-interface Post {
-  _id: string;
-  authorId: string;
-  username: string;
-  content: string;
-  createdAt: string;
-  likesCount: number;
-  commentsCount: number;
-  tags: string[];
-  userAvatarUrl?: string;
-  userAvatarType?: 'generated' | 'uploaded';
-  isVerified?: boolean;
-}
 
 export default function Feed() {
   const { user } = useAuthStore()
-  const [posts, setPosts] = useState<Post[]>([])
+  const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedUsername, setSelectedUsername] = useState<string | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-
-  const fetchPosts = async () => {
-    setLoading(true)
-    try {
-      const response = await fetch('/api/posts')
-      const data = await response.json()
-      setPosts(Array.isArray(data) ? data : [])
-    } catch (error) {
-      toast.error('Failed to fetch posts')
-      console.error('Error fetching posts:', error)
-      setPosts([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [showSearch, setShowSearch] = useState(false)
+  const [showGroups, setShowGroups] = useState(false)
+  const [showCreatePost, setShowCreatePost] = useState(false)
 
   useEffect(() => {
-    fetchPosts()
-  }, [])
+    const handleProfileChange = (event: CustomEvent<string>) => {
+      setSelectedUsername(event.detail);
+    };
 
-  const handleCategorySelect = (categoryId: string | null) => {
-    setSelectedCategory(categoryId);
-    // Add category filtering logic here
+    const handleRouteChange = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const profileParam = urlParams.get('profile');
+      setSelectedUsername(profileParam);
+    };
+
+    handleRouteChange();
+    window.addEventListener('profileChange', handleProfileChange as EventListener);
+    window.addEventListener('popstate', handleRouteChange);
+
+    return () => {
+      window.removeEventListener('profileChange', handleProfileChange as EventListener);
+      window.removeEventListener('popstate', handleRouteChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const fetchPosts = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/posts');
+      const data = await response.json();
+      setPosts(data);
+    } catch (error) {
+      toast.error('Failed to fetch posts');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNavigation = (path: string) => {
+    if (path === '/search') {
+      setShowSearch(true);
+      setSelectedUsername(null);
+      setShowGroups(false);
+    } else if (path === '/groups') {
+      setShowGroups(true);
+      setShowSearch(false);
+      setSelectedUsername(null);
+    } else if (path === '/create') {
+      setShowCreatePost(true);
+    } else {
+      setShowSearch(false);
+      setShowGroups(false);
+    }
   };
 
   return (
-    <div className="grid grid-cols-12 gap-6">
-      <LeftSidebar onCategorySelect={handleCategorySelect} />
-      
-      <div className="col-span-12 md:col-span-6 lg:col-span-6">
-        {selectedUsername ? (
-          <UserProfile 
-            username={selectedUsername} 
-            onBack={() => setSelectedUsername(null)}
-            isOwnProfile={user?.username === selectedUsername}
-          />
-        ) : (
-          <>
-            <CreatePost onPostCreated={fetchPosts} />
+    <div className="min-h-screen bg-dark">
+      <div className="flex">
+        {/* Left Sidebar - Hidden on Mobile */}
+        <div className="hidden lg:block w-[240px] flex-shrink-0 fixed left-0 h-screen">
+          <LeftSidebar onNavigate={handleNavigation} />
+        </div>
+
+        {/* Main Content */}
+        <main className="flex-1 min-h-screen lg:ml-[240px] lg:mr-[350px] border-x border-white/5">
+          {showGroups ? (
+            <Groups />
+          ) : showSearch ? (
+            <Search onUserSelect={(username) => {
+              setSelectedUsername(username);
+              setShowSearch(false);
+            }} />
+          ) : selectedUsername ? (
+            <UserProfile 
+              username={selectedUsername}
+              onBack={() => {
+                window.history.pushState({}, '', '/feed');
+                setSelectedUsername(null);
+              }}
+              isOwnProfile={user?.username === selectedUsername}
+            />
+          ) : (
             <PostList 
-              posts={posts} 
-              loading={loading} 
-              onPostDeleted={(postId) => {
-                setPosts(currentPosts => currentPosts.filter(p => p._id !== postId));
-              }}
-              onPostUpdated={(updatedPost) => {
-                setPosts(currentPosts => 
-                  currentPosts.map(p => p._id === updatedPost._id ? updatedPost : p)
-                );
-              }}
+              posts={posts}
+              loading={loading}
+              onPostDeleted={fetchPosts}
+              onPostUpdated={fetchPosts}
               onAvatarClick={setSelectedUsername}
             />
-          </>
-        )}
+          )}
+        </main>
+
+        {/* Right Sidebar - Hidden on Mobile */}
+        <div className="hidden lg:block w-[350px] flex-shrink-0 fixed right-0 h-screen">
+          <RightSidebar />
+        </div>
+
+        {/* Bottom Navigation - Mobile Only */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 border-t border-white/5 bg-dark">
+          <BottomNav onNavigate={handleNavigation} />
+        </div>
       </div>
 
-      <RightSidebar />
+      {/* Create Post Modal */}
+      <CreatePostModal
+        isOpen={showCreatePost}
+        onClose={() => setShowCreatePost(false)}
+        onPostCreated={() => {
+          setShowCreatePost(false);
+          fetchPosts();
+        }}
+      />
     </div>
-  )
+  );
 } 
